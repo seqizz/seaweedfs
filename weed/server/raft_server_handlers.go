@@ -17,6 +17,8 @@ type ClusterStatusResult struct {
 }
 
 func (s *RaftServer) StatusHandler(w http.ResponseWriter, r *http.Request) {
+	leaderCheck := r.URL.Query().Get("leadercheck") == "y"
+
 	ret := ClusterStatusResult{
 		IsLeader:    s.topo.IsLeader(),
 		Peers:       s.Peers(),
@@ -26,7 +28,15 @@ func (s *RaftServer) StatusHandler(w http.ResponseWriter, r *http.Request) {
 	if leader, e := s.topo.Leader(); e == nil {
 		ret.Leader = leader
 	}
-	writeJsonQuiet(w, r, http.StatusOK, ret)
+
+	status := http.StatusOK
+	if leaderCheck && !ret.IsLeader {
+		// If leadercheck is true and this node is not the leader,
+		// set status to 303, meant to be used with health checkers
+		status = http.StatusSeeOther
+	}
+
+	writeJsonQuiet(w, r, status, ret)
 }
 
 func (s *RaftServer) HealthzHandler(w http.ResponseWriter, r *http.Request) {
